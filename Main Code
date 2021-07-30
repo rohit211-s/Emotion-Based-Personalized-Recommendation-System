@@ -1,0 +1,333 @@
+from keras.models import load_model
+from time import sleep
+from keras.preprocessing.image import img_to_array
+from keras.preprocessing import image
+import cv2
+import numpy as np
+import pandas as pd
+
+from IPython.display import display, HTML
+import matplotlib.pyplot as plt
+import seaborn as sns
+pd.options.display.max_columns=90
+data = pd.read_csv('album_ratings.csv')
+#print(data['Genre'].unique())
+df=data
+df['Genre'] = df['Genre'].str.replace(" ","")
+#print(df['Genre'].unique())
+#print(df[df['Genre'].str.match('^[a-zA-Z]*(Blues)[a-z]*$')==True])
+df1=df[df['Genre'].str.match('[a-zA-Z]*(Pop).*')== True]
+df2=df[df['Genre'].str.match('[a-zA-Z]*(Rock).*')== True]
+df3=df[df['Genre'].str.match('[a-zA-Z]*(Blues).*')== True]
+df4=df[df['Genre'].str.match('[a-zA-Z]*(Jazz).*')== True]
+df5=df[df['Genre'].str.match('[a-zA-Z]*(Folk).*')== True]
+df6=df[df['Genre'].str.match('[a-zA-Z]*(Hop).*')== True]
+df7=df[df['Genre'].str.match('[a-zA-Z]*(Electro)[a-zA-Z-]*.*')== True]
+df8=df[df['Genre'].str.match('[a-zA-Z]*(Metal)[a-zA-Z-]*.*')== True]
+df9=df[df['Genre'].str.match('[a-zA-Z]*(Rap)[a-zA-Z-]*.*')== True]
+df10=df[df['Genre'].str.match('[a-zA-Z]*(Classical)[a-zA-Z-]*.*')== True]
+frame=[df1,df2,df3,df4,df5,df6,df7,df8,df9,df10]
+frame=pd.concat(frame)
+frame=frame.dropna()
+frame.reset_index(drop=True, inplace=True)
+#print(frame['Genre'].unique())
+frame
+v=frame['Metacritic User Reviews']
+R=frame['Metacritic User Score']
+C=frame['Metacritic User Score'].mean()
+m=30.0
+frame['weighted_average']=((R*v)+ (C*m))/(v+m)
+frame
+frame1=frame.sort_values('weighted_average',ascending=False)
+frame1=frame1.dropna()
+frame1.reset_index(drop=True,inplace=True)
+#print(frame1['Genre'].unique())
+frame1=frame1.drop_duplicates()
+frame1.reset_index(drop=True,inplace=True)
+weight_average=frame1.sort_values('weighted_average',ascending=False)
+face_classifier = cv2.CascadeClassifier(r'C:\Users\USER\Desktop\pythonProject5\haarcascade_frontalface_default.xml')
+classifier =load_model(r'C:\Users\USER\Desktop\pythonProject5\model.h5')
+
+emotion_labels = ['Angry','Disgust','Fear','Happy','Neutral', 'Sad', 'Surprise']
+
+cap = cv2.VideoCapture(0)
+
+
+
+while True:
+    _, frame = cap.read()
+    labels = []
+    gray = cv2.cvtColor(frame,cv2.COLOR_BGR2GRAY)
+    faces = face_classifier.detectMultiScale(gray)
+
+    for (x,y,w,h) in faces:
+        cv2.rectangle(frame,(x,y),(x+w,y+h),(0,255,255),  2)
+        roi_gray = gray[y:y+h,x:x+w]
+        roi_gray = cv2.resize(roi_gray,(48,48),interpolation=cv2.INTER_AREA)
+        if np.sum([roi_gray])!=0:
+            roi = roi_gray.astype('float')/255.0
+            roi = img_to_array(roi)
+            roi = np.expand_dims(roi,axis=0)
+
+            prediction = classifier.predict(roi)[0]
+            label=emotion_labels[prediction.argmax()]
+            label_position = (x,y)
+            cv2.putText(frame,label,label_position,cv2.FONT_HERSHEY_SIMPLEX,1,(0,255,0),2)
+            if(label=="Happy"):
+                rocksong=""
+                popsong=""
+                folksong=""
+                allrocksongs=frame1[frame1['Genre'].str.match('[a-zA-Z]*(Rock).*')== True]
+                allpopsongs=frame1[frame1['Genre'].str.match('[a-zA-Z]*(Pop).*')== True]
+                allfolksongs=frame1[frame1['Genre'].str.match('[a-zA-Z]*(Folk).*')== True]
+                allrocksongs.reset_index(drop=True,inplace=True)
+                allpopsongs.reset_index(drop=True,inplace=True)
+                allfolksongs.reset_index(drop=True,inplace=True)
+                if(rocksong != ""):
+                    rocksongindex = frame1[frame1['Title'].str.match(rocksong) == True]
+                    rockvalue = rocksongindex['weighted_average']
+                    rockvalue = float(rockvalue)
+                    selrocksongs = allrocksongs[allrocksongs['weighted_average'] < rockvalue].head(4)
+
+                else:
+                    selrocksongs = allrocksongs.head(4)
+
+                if (popsong != ""):
+                    popsongindex = allpopsongs[allpopsongs['Title'].str.match(popsong) == True]
+                    popvalue = popsongindex['weighted_average']
+                    popvalue = float(popvalue)
+                    selpopsongs = allpopsongs[allpopsongs['weighted_average'] < popvalue].head(4)
+                else:
+                    selpopsongs = allpopsongs.head(4)
+                if (folksong != ""):
+                    folksongindex = allfolksongs[allfolksongs['Title'].str.match(folksong) == True]
+                    folkvalue = folksongindex['weighted_average']
+                    folkvalue = float(folkvalue)
+                    selfolksongs = allfolksongs[allfolksongs['weighted_average'] < folkvalue].head(4)
+                else:
+                    selfolksongs = allfolksongs.head(4)
+                print("\033[1m" + " THE RECOMMENDED HAPPY SONGS ARE" + "\033[0m")
+
+                recommendedsongs = [selrocksongs, selpopsongs, selfolksongs]
+                recommendedsongs = pd.concat(recommendedsongs)
+                recommendedsongs.reset_index(drop=True, inplace=True)
+                print(recommendedsongs['Title'])
+                break
+            if(label=="Sad"):
+                bluesong="Lions"
+                jazzsong="Heaven and Earth"
+                allbluesongs=frame1[frame1['Genre'].str.match('[a-zA-Z]*(Blues).*')== True]
+                alljazzsongs=frame1[frame1['Genre'].str.match('[a-zA-Z]*(Jazz).*')== True]
+                allbluesongs.reset_index(drop=True,inplace=True)
+                alljazzsongs.reset_index(drop=True,inplace=True)
+
+                if(bluesong!=""):
+                    bluesongindex=allbluesongs[allbluesongs['Title'].str.match(bluesong)== True]
+                    bluevalue=bluesongindex['weighted_average']
+                    bluevalue=float(bluevalue)
+                    selbluesongs=allbluesongs[allbluesongs['weighted_average']<bluevalue].head(5)
+                else:
+                    selbluesongs=allbluesongs.head(5)
+
+                if(jazzsong!=""):
+                    jazzsongindex=alljazzsongs[alljazzsongs['Title'].str.match(jazzsong)== True]
+                    jazzvalue=jazzsongindex['weighted_average']
+                    jazzvalue=float(jazzvalue)
+                    seljazzsongs=alljazzsongs[alljazzsongs['weighted_average']<jazzvalue].head(5)
+                else:
+                    seljazzsongs=alljazzsongs.head(5)
+
+                print( "\033[1m" + " THE RECOMMENDED SAD SONGS ARE" + "\033[0m" )
+                recommended_sad_songs=[selbluesongs,seljazzsongs]
+                recommended_sad_songs=pd.concat(recommended_sad_songs)
+                recommended_sad_songs.reset_index(drop=True, inplace=True)
+                print(recommended_sad_songs['Title'])
+                break
+
+            if(label == "Angry"):
+                classicalsong = "Hero Brother"
+                jazzsong = "Heaven and Earth"
+                rapsong = "MUDBOY"
+                allclassicalsongs = frame1[frame1['Genre'].str.match('[a-zA-Z]*(Classical)[a-zA-Z-]*.*') == True]
+                alljazzsongs = frame1[frame1['Genre'].str.match('[a-zA-Z]*(Jazz).*') == True]
+                allrapsongs = frame1[frame1['Genre'].str.match('[a-zA-Z]*(Rap)[a-zA-Z-]*.*') == True]
+                allclassicalsongs.reset_index(drop=True, inplace=True)
+                alljazzsongs.reset_index(drop=True, inplace=True)
+                allrapsongs.reset_index(drop=True, inplace=True)
+
+                if (classicalsong != ""):
+                    classicalsongindex = allclassicalsongs[allclassicalsongs['Title'].str.match(classicalsong) == True]
+                    classicalvalue = classicalsongindex['weighted_average']
+                    classicalvalue = float(classicalvalue)
+                    selclassicalsongs = allclassicalsongs[allclassicalsongs['weighted_average'] < classicalvalue].head(4)
+                else:
+                    selclassicalsongs = allclassicalsongs.head(4)
+
+                if (jazzsong != ""):
+                    jazzsongindex = alljazzsongs[alljazzsongs['Title'].str.match(jazzsong) == True]
+                    jazzvalue = jazzsongindex['weighted_average']
+                    jazzvalue = float(jazzvalue)
+                    seljazzsongs = alljazzsongs[alljazzsongs['weighted_average'] < jazzvalue].head(4)
+                else:
+                    seljazzsongs = alljazzsongs.head(4)
+
+                if (rapsong != ""):
+                    rapsongindex = allrapsongs[allrapsongs['Title'].str.match(rapsong) == True]
+                    rapvalue = rapsongindex['weighted_average']
+                    rapvalue = float(rapvalue)
+                    selrapsongs = allrapsongs[allrapsongs['weighted_average'] < rapvalue].head(4)
+                else:
+                    selrapsongs = allrapsongs.head(4)
+
+                print("\033[1m" + " THE RECOMMENDED ANGRY SONGS ARE" + "\033[0m")
+                recommended_angry_songs = [selclassicalsongs, seljazzsongs, selrapsongs]
+                recommended_angry_songs = pd.concat(recommended_angry_songs)
+                recommended_angry_songs.reset_index(drop=True, inplace=True)
+                print(recommended_angry_songs['Title'])
+                break
+            if (label == "Neutral"):
+                recommended_songs = frame1.head(10)
+                print("\033[1m" + " THE RECOMMENDED NEUTRAL SONGS ARE" + "\033[0m")
+                print(recommended_songs['Title'])
+            if (label == "Disgust"):
+                electronicsong = "Fist of God"
+                classicalsong = "Hero Brother"
+                metalsong = "Crack The Skye"
+                allclassicalsongs = frame1[frame1['Genre'].str.match('[a-zA-Z]*(Classical)[a-zA-Z-]*.*') == True]
+                allelectronicsongs = frame1[frame1['Genre'].str.match('[a-zA-Z]*(Electro)[a-zA-Z-]*.*') == True]
+                allmetalsongs = frame1[frame1['Genre'].str.match('[a-zA-Z]*(Metal)[a-zA-Z-]*.*') == True]
+                allclassicalsongs.reset_index(drop=True, inplace=True)
+                allelectronicsongs.reset_index(drop=True, inplace=True)
+                allmetalsongs.reset_index(drop=True, inplace=True)
+                # print(allclassicalsongs)
+                # print(allelectronicsongs)
+                # print(allmetalsongs)
+                if (classicalsong != ""):
+                    classicalsongindex = allclassicalsongs[allclassicalsongs['Title'].str.match(classicalsong) == True]
+                    classicalvalue = classicalsongindex['weighted_average']
+                    classicalvalue = float(classicalvalue)
+                    selclassicalsongs = allclassicalsongs[allclassicalsongs['weighted_average'] < classicalvalue].head(
+                        4)
+                    selclassicalsongs
+                else:
+                    selclassicalsongs = allclassicalsongs.head(4)
+                    selclassicalsongs
+
+                if (electronicsong != ""):
+                    electronicsongindex = allelectronicsongs[
+                        allelectronicsongs['Title'].str.match(electronicsong) == True]
+                    electronicvalue = electronicsongindex['weighted_average']
+                    electronicvalue = float(electronicvalue)
+                    selelectronicsongs = allelectronicsongs[
+                        allelectronicsongs['weighted_average'] < electronicvalue].head(4)
+                    selelectronicsongs
+                else:
+                    selelectronicsongs = allelectronicsongs.head(4)
+                    selelectronicsongs
+
+                if (metalsong != ""):
+                    metalsongindex = allmetalsongs[allmetalsongs['Title'].str.match(metalsong) == True]
+                    metalvalue = metalsongindex['weighted_average']
+                    metalvalue = float(metalvalue)
+                    selmetalsongs = allmetalsongs[allmetalsongs['weighted_average'] < metalvalue].head(4)
+                    selmetalsongs
+                else:
+                    selmetalsongs = allmetalsongs.head(4)
+                    selmetalsongs
+
+                print("\033[1m" + " THE RECOMMENDED SONGS ARE" + "\033[0m")
+                recommended_angry_songs = [selclassicalsongs, selmetalsongs, selelectronicsongs]
+                recommended_angry_songs = pd.concat(recommended_angry_songs)
+                recommended_angry_songs.reset_index(drop=True, inplace=True)
+                print(recommended_angry_songs['Title'])
+
+            if (label == "Surprise"):
+                electronicsong = "Fist of God"
+                hiphopsong = "The Spirit of Apollo"
+                folksong = "The Lion's Roar"
+                allhiphopsongs = frame1[frame1['Genre'].str.match('[a-zA-Z]*(Hop)[a-zA-Z-]*.*') == True]
+                allelectronicsongs = frame1[frame1['Genre'].str.match('[a-zA-Z]*(Electro)[a-zA-Z-]*.*') == True]
+                allfolksongs = frame1[frame1['Genre'].str.match('[a-zA-Z]*(Folk)[a-zA-Z-]*.*') == True]
+                allhiphopsongs.reset_index(drop=True, inplace=True)
+                allelectronicsongs.reset_index(drop=True, inplace=True)
+                allfolksongs.reset_index(drop=True, inplace=True)
+                # print(allclassicalsongs)
+                # print(allelectronicsongs)
+                # print(allmetalsongs)
+                if (hiphopsong != ""):
+                    hiphopsongindex = allhiphopsongs[allhiphopsongs['Title'].str.match(hiphopsong) == True]
+                    hiphopvalue = hiphopsongindex['weighted_average']
+                    hiphopvalue = float(hiphopvalue)
+                    selhiphopsongs = allhiphopsongs[allhiphopsongs['weighted_average'] < hiphopvalue].head(4)
+                else:
+                    selhiphopsongs = allhiphopsongs.head(4)
+                if (electronicsong != ""):
+                    electronicsongindex = allelectronicsongs[allelectronicsongs['Title'].str.match(electronicsong) == True]
+                    electronicvalue = electronicsongindex['weighted_average']
+                    electronicvalue = float(electronicvalue)
+                    selelectronicsongs = allelectronicsongs[allelectronicsongs['weighted_average'] < electronicvalue].head(4)
+                else:
+                    selelectronicsongs = allelectronicsongs.head(4)
+                if (folksong != ""):
+                    folksongindex = allfolksongs[allfolksongs['Title'].str.match(folksong) == True]
+                    folkvalue = folksongindex['weighted_average']
+                    folkvalue = float(folkvalue)
+                    selfolksongs = allfolksongs[allfolksongs['weighted_average'] < folkvalue].head(4)
+                else:
+                    selfolksongs = allfolksongs.head(4)
+                print("\033[1m" + " THE RECOMMENDED SURPRISE SONGS ARE" + "\033[0m")
+                recommended_surprise_songs = [selhiphopsongs, selfolksongs, selelectronicsongs]
+                recommended_surprise_songs = pd.concat(recommended_surprise_songs)
+                recommended_surprise_songs.reset_index(drop=True, inplace=True)
+                print(recommended_surprise_songs['Title'])
+
+            if (label == "Fear"):
+                jazzsong = "Heaven and Earth"
+                classicalsong = "Hero Brother"
+                metalsong = "Crack The Skye"
+                allclassicalsongs = frame1[frame1['Genre'].str.match('[a-zA-Z]*(Classical)[a-zA-Z-]*.*') == True]
+                alljazzsongs = frame1[frame1['Genre'].str.match('[a-zA-Z]*(Jazz)[a-zA-Z-]*.*') == True]
+                allmetalsongs = frame1[frame1['Genre'].str.match('[a-zA-Z]*(Metal)[a-zA-Z-]*.*') == True]
+                allclassicalsongs.reset_index(drop=True, inplace=True)
+                alljazzsongs.reset_index(drop=True, inplace=True)
+                allmetalsongs.reset_index(drop=True, inplace=True)
+                # print(allclassicalsongs)
+                # print(allelectronicsongs)
+                # print(allmetalsongs)
+                if (classicalsong != ""):
+                    classicalsongindex = allclassicalsongs[allclassicalsongs['Title'].str.match(classicalsong) == True]
+                    classicalvalue = classicalsongindex['weighted_average']
+                    classicalvalue = float(classicalvalue)
+                    selclassicalsongs = allclassicalsongs[allclassicalsongs['weighted_average'] < classicalvalue].head(4)
+                else:
+                    selclassicalsongs = allclassicalsongs.head(4)
+
+                if (jazzsong != ""):
+                    jazzsongindex = alljazzsongs[alljazzsongs['Title'].str.match(jazzsong) == True]
+                    jazzvalue = jazzsongindex['weighted_average']
+                    jazzvalue = float(jazzvalue)
+                    seljazzsongs = alljazzsongs[alljazzsongs['weighted_average'] < jazzvalue].head(4)
+                else:
+                    seljazzsongs = alljazzsongs.head(4)
+                if (metalsong != ""):
+                    metalsongindex = allmetalsongs[allmetalsongs['Title'].str.match(metalsong) == True]
+                    metalvalue = metalsongindex['weighted_average']
+                    metalvalue = float(metalvalue)
+                    selmetalsongs = allmetalsongs[allmetalsongs['weighted_average'] < metalvalue].head(4)
+                else:
+                    selmetalsongs = allmetalsongs.head(4)
+
+                print("\033[1m" + " THE RECOMMENDED FEAR SONGS ARE" + "\033[0m")
+                recommended_angry_songs = [selclassicalsongs, selmetalsongs, seljazzsongs]
+                recommended_angry_songs = pd.concat(recommended_angry_songs)
+                recommended_angry_songs.reset_index(drop=True, inplace=True)
+                print(recommended_angry_songs['Title'])
+
+
+    else:
+        cv2.putText(frame,'No Faces',(30,80),cv2.FONT_HERSHEY_SIMPLEX,1,(0,255,0),2)
+    cv2.imshow('Emotion Detector',frame)
+    if cv2.waitKey(1) & 0xFF == ord('q'):
+        break
+cap.release()
+cv2.destroyAllWindows()
